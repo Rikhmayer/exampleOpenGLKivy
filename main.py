@@ -51,10 +51,10 @@ void main()
 
     gl_Position = PerspxViewMatr * vec4(vPosition[0], vPosition[1], vPosition[2], 1.0);
 
-    vec4 norm = NormRotMatr * vec4(vNormal, 0);
+    vec4 norm = NormRotMatr * vec4(vNormal, 0.0);
 
     float dotnorm = dot(s, norm);
-    LightI = ambient + max(dotnorm, -dotnorm)*0.65; //vec3(0.45, 0.45, 0.45);
+    LightI = ambient + max(dotnorm, 0.0)*0.65; //vec3(0.45, 0.45, 0.45);
     f2Texcoords = vTexcoords;
 }
 '''
@@ -75,10 +75,7 @@ void main()
 {
 
     vec4 color = texture2D(textureObj, f2Texcoords);
-    if(color[3] > 0.5)
-        gl_FragColor = vec4( LightI*color.xyz, 1.0);
-    else
-        discard;
+    gl_FragColor = vec4( LightI*color.xyz, 1.0);
 
 }
 '''
@@ -109,13 +106,25 @@ class androidman():
         self.ttox = 1.0
         self.ttoy = 1.0
 
-        self.coolbochka((0,0,0), (0,0,300), 200, 12)
+        self.coolbochka([0,0,0], [0,0,300], 200, 16, True)
+        self.coolbochka([-100,0,400], [-150,0,500], 20, 6)
+        self.coolbochka([100,0,400], [150,0,500], 20, 6)
+        self.coolbochka([100,0,300], [300,0,100], 40, 10)
+        self.coolbochka([-100,0,300], [-300,0,100], 40, 10)
+        self.coolbochka([100,0,0], [100,0,-170], 60, 10)
+        self.coolbochka([-100,0,0], [-100,0,-170], 60, 10)
 
-        self.mpV = np.array(self.V, dtype = np.float32)
-        self.mpN = np.array(self.V, dtype = np.float32)
-        self.mpT = np.array(self.V, dtype = np.float32)
+        self.npV = np.array(self.V, dtype = np.float32)
+        self.npN = np.array(self.N, dtype = np.float32)
+        self.npT = np.array(self.T, dtype = np.float32)
         self.VN = len(self.V)
         self.TN = len(self.T)
+        print(int(self.VN/3))
+
+        del self.V
+        del self.N
+        del self.T
+
         self.shift = (0,0,0)
 
         #self.numVertsDyrty = int(len(self.V)/3)
@@ -134,49 +143,106 @@ class androidman():
         self.ifChage = False
         return (Vrfom, Tfrom)
 
+    def RotVertsZ(self, zrot):
+        RotM = np.array([ [ cos(zrot),  sin(zrot), 0],
+                          [-sin(zrot),  cos(zrot), 0],
+                          [         0,          0, 1] ])
+        vec1 = np.zeros(3, dtype=np.float32)
+
+        for i in range(0, self.VN, 3):
+            vec1[0] = self.npV[i]
+            vec1[1] = self.npV[i+1]
+            vec1[2] = self.npV[i+2]
+            res = np.dot(RotM, vec1)
+            self.npV[i] = res[0]
+            self.npV[i+1] = res[1]
+            self.npV[i+2] = res[2]
+
+            vec1[0] = self.npN[i]
+            vec1[1] = self.npN[i+1]
+            vec1[2] = self.npN[i+2]
+            res = np.dot(RotM, vec1)
+            self.npN[i] = res[0]
+            self.npN[i+1] = res[1]
+            self.npN[i+2] = res[2]
+
+    def RotVerts(self, xrot, zrot):
+        RotM1 = np.array([ [ 1,   0, 0],
+                          [0 , cos(xrot) , sin(xrot)],
+                          [0, -sin(xrot) , cos(xrot)]])
+        RotM2 = np.array([ [ cos(zrot),  sin(zrot), 0],
+                          [-sin(zrot),  cos(zrot), 0],
+                          [         0,          0, 1] ])
+        RotM = np.dot(RotM1, RotM2 )
+        vec1 = np.zeros(3, dtype=np.float32)
+
+        for i in range(0, self.VN, 3):
+            vec1[0] = self.npV[i]
+            vec1[1] = self.npV[i+1]
+            vec1[2] = self.npV[i+2]
+            res = np.dot(RotM, vec1)
+            self.npV[i] = res[0]
+            self.npV[i+1] = res[1]
+            self.npV[i+2] = res[2]
+
+            vec1[0] = self.npN[i]
+            vec1[1] = self.npN[i+1]
+            vec1[2] = self.npN[i+2]
+            res = np.dot(RotM, vec1)
+            self.npN[i] = res[0]
+            self.npN[i+1] = res[1]
+            self.npN[i+2] = res[2]
+
     def coolbochka(self, v1, v2, R, N, iye = False):
         ''' колбочка из точки в1 в точку в2 вот такой ширины, вот такой толщины, вот такой кривизны или с глазом '''
         alpha = 2*pi/N
         beta = alpha
         texstandart = [self.tfomx, self.tfomy, self.tfomx+self.ttox, self.tfomy, self.tfomx+self.ttox, self.tfomy+self.ttoy]
+        #texiye = [self.tfomx, self.tfomy, self.tfomx, self.tfomy+self.ttoy, self.tfomx+self.ttox, self.tfomy+self.ttoy]
+        texiye = [0, 0.05, 0, 1, 0.95, 1]
 
         #найдем вектор, перпендикулярный v1-v2
         dv = (v2[0]-v1[0], v2[1]-v1[1], v2[2]-v1[2]) #v1-v2
         NSphere = int(N/4)-1
         if NSphere < 2:
             NSphere = 2
-        e = 1 #типа эксцентриситет
+            beta = pi/4
+        e = 0.7 #типа эксцентриситет
         normdno = CxV(-1, NormVec(dv))
         if abs(dv[2]) < 0.00001:
             radv = NormVec(VecMult(dv, (0,0,1)))
         else:
             radv = NormVec(VecMult(dv, (0,1,0)))
-        for i in range(0, N-1):
+        for i in range(0, N):
             nextradv = NormVec(VecMult(dv, radv ))
-            nextradv = ( radv[0]*cos(alpha) + nextradv[0]*sin(alpha), radv[1]*cos(alpha) + nextradv[1]*sin(alpha), radv[2]*cos(alpha) + nextradv[2]*sin(alpha) )
+            nextradv = [ radv[0]*cos(alpha) + nextradv[0]*sin(alpha), radv[1]*cos(alpha) + nextradv[1]*sin(alpha), radv[2]*cos(alpha) + nextradv[2]*sin(alpha) ]
 
-            self.V += ( PlusVecs(CxV(R, radv), v1 ), PlusVecs(CxV(R, nextradv), v1 ), PlusVecs(CxV(R, nextradv), v2 ) )
-            self.V += ( PlusVecs(CxV(R, nextradv), v2 ), PlusVecs(CxV(R, radv), v2 ), PlusVecs(CxV(R, radv), v1 ) )
+            self.V += PlusVecs(CxV(R, radv), v1 )+ PlusVecs(CxV(R, nextradv), v1 )+ PlusVecs(CxV(R, nextradv), v2 )
+            self.V += PlusVecs(CxV(R, nextradv), v2 )+ PlusVecs(CxV(R, radv), v2 )+ PlusVecs(CxV(R, radv), v1 )
             self.N += radv + nextradv + nextradv + nextradv + radv + radv
             self.T += texstandart*2
             #и донышко закроем
-            self.V += ( PlusVecs(CxV(R, radv), v1 ), PlusVecs(CxV(R, nextradv), v1 ), v1 )
+            self.V +=  PlusVecs(CxV(R, radv), v1 )+ PlusVecs(CxV(R, nextradv), v1 )+ v1
             self.N += normdno*3
             self.T += texstandart
             #и круглую часть
-            D0, D1 = radv, nextradv
+            D0, D1 = PlusVecs(CxV(R,radv), v2), PlusVecs(CxV(R,nextradv), v2)
             N0, N1 = radv, nextradv
             for j in range(0, NSphere):
-                D2 = PlusVecs( CxV(cos((j+1)*beta), PlusVecs(CxV(R, nextradv), v2 )),  CxV(-e*R*sin((j+1)*beta),normdno))
-                D3 = PlusVecs( CxV(cos((j+1)*beta), PlusVecs(CxV(R, radv), v2 )),  CxV(-e*R*sin((j+1)*beta),normdno))
+                D2 = PlusVecs(PlusVecs( CxV(R*cos((j+1)*beta), nextradv),  CxV(-e*R*sin((j+1)*beta),normdno) ) , v2 )
+                D3 = PlusVecs(PlusVecs( CxV(R*cos((j+1)*beta), radv),  CxV(-e*R*sin((j+1)*beta),normdno) ) , v2 )
                 N2 = NormVec(PlusVecs( CxV(cos((j+1)*beta), nextradv),  CxV(-e*sin((j+1)*beta),normdno)))
                 N3 = NormVec(PlusVecs( CxV(cos((j+1)*beta), radv),  CxV(-e*sin((j+1)*beta),normdno)))
                 self.V += D0+D1+D2  +  D2+D3+D0
                 self.N += N0+N1+N2  +  N2+N3+N0
-                self.T += texstandart*2
-                D0, D1 = D2, D3
+                if iye and j == 1 and i in [int(N/8), int(3*N/8)]:
+                    self.T += texiye*2
+                else:
+                    self.T += texstandart*2
+                D0, D1 = D3, D2
+                N0, N1 = N3, N2
             #и пимпочка сверху
-            self.V += D0+D1+ PlusVecs(CxV(-e*R,normdno), v2 ))
+            self.V += D0+D1+ PlusVecs(CxV(-e*R,normdno), v2 )
             self.N += N0+N1+CxV(-1, normdno)
             self.T += texstandart
             #переходим к следующей дольке
@@ -199,7 +265,7 @@ def MatrixViev():
         t = 300
         r = t*SceneWH[0]/SceneWH[1]
 
-    alpha = math.pi/2 - math.asin(1/math.sqrt(2))#math.pi/6
+    alpha = pi/2 #- asin(1/sqrt(2))#math.pi/6
     F = 3000#2000 #расстояние от фокуса до точвки 0 0 0
 
     perspective = [[n/r , 0, 0, 0],
@@ -209,14 +275,14 @@ def MatrixViev():
                    #[ 0, 0, 0, 1], #ортогональная проекция
                    [ 0, 0, -1, 0]]
     if ifVert:
-        rotaxis     = [[ 0, math.cos(alpha), math.sin(alpha), 0],
+        rotaxis     = [[ 0, cos(alpha), sin(alpha), 0],
                       [ -1, 0, 0, 0], #[ 1, 0, 0, 0],
-                   [ 0, -math.sin(alpha), math.cos(alpha), 0],
+                   [ 0, -sin(alpha), cos(alpha), 0],
                    [ 0, 0, 0, 1]]
     else:
         rotaxis     = [[ 1, 0, 0, 0],
-                   [ 0, math.cos(alpha), math.sin(alpha), 0],
-                   [ 0, -math.sin(alpha), math.cos(alpha), 0],
+                   [ 0, cos(alpha), sin(alpha), 0],
+                   [ 0, -sin(alpha), cos(alpha), 0],
                    [ 0, 0, 0, 1]]
     #print(np.dot(rotaxis, (0,1,0,1)))
     shiftaxis   = [[ 1, 0, 0, 0],
@@ -226,26 +292,32 @@ def MatrixViev():
     return np.dot( np.array(perspective, dtype=np.float32), np.dot( np.array(shiftaxis, dtype=np.float32), np.array(rotaxis, dtype=np.float32)))
 
 def MatrixRot():
-    alpha = math.pi/2 - math.asin(1/math.sqrt(2))
+    alpha = pi/2 #- asin(1/sqrt(2))
     if ifVert:
-        rotaxis     = [[ 0, math.cos(alpha), math.sin(alpha), 0],
+        rotaxis     = [[ 0, cos(alpha), sin(alpha), 0],
                       [ -1, 0, 0, 0],
-                   [ 0, -math.sin(alpha), math.cos(alpha), 0],
+                   [ 0, -sin(alpha), cos(alpha), 0],
                    [ 0, 0, 0, 1]]
     else:
         rotaxis     = [[ 1, 0, 0, 0],
-                   [ 0, math.cos(alpha), math.sin(alpha), 0],
-                   [ 0, -math.sin(alpha), math.cos(alpha), 0],
+                   [ 0, cos(alpha), sin(alpha), 0],
+                   [ 0, -sin(alpha), cos(alpha), 0],
                    [ 0, 0, 0, 1]]
     return np.array(rotaxis, dtype=np.float32)
 
-def GenTexture():
-    txtr = np.zeros((100*100*3), dtype = np.int8)
-    for i in range(0,100):
-        for j in range(0,100):
-            txtr[(i*100+j)*3] = 30
-            txtr[(i*100+j)*3+1] = 220
-            txtr[(i*100+j)*3+3] = 50
+def GenTexture(N = 100):
+    txtr = np.zeros((N*N*3), dtype = np.int8)
+    for i in range(0,N):
+        for j in range(0,N):
+            if i > j and (i/(N-1)-0.5)**2 + (j/(N-1)-0.5)**2 < 0.25  :
+                txtr[(i*N+j)*3] = 10
+                txtr[(i*N+j)*3+1] = 40
+                txtr[(i*N+j)*3+2] = 20
+            else:
+                txtr[(i*N+j)*3] = 30
+                txtr[(i*N+j)*3+1] = 120
+                txtr[(i*N+j)*3+2] = 50
+                #print((i/(N-1)-0.5)**2 + (j/(N-1)-0.5)**2)
     return txtr.tobytes()
 
 def init(): #Window):
@@ -258,13 +330,16 @@ def init(): #Window):
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D, texID)
 
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 3)
-        glPixelStorei(GL_PACK_ALIGNMENT, 3)
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 4)
+        glPixelStorei(GL_PACK_ALIGNMENT, 4)
 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
         #print(len(textr[2]), textr[0]*textr[1]*3, textr[0], textr[1] )
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 100, 100, 0, GL_RGB, GL_UNSIGNED_BYTE, GenTexture())
+        #TxtInfo = LoadTextures()
+        #textr = TxtInfo[0]
+        #glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, textr[0], textr[1], 0, GL_RGBA, GL_UNSIGNED_BYTE, textr[2])
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 300, 300, 0, GL_RGB, GL_UNSIGNED_BYTE, GenTexture(300))
 
         VshaderID = glCreateShader( GL_VERTEX_SHADER )#shader)
         glShaderSource(VshaderID, vertSH.encode('utf-8'))#getFileContent("helloTriangle.vert"))
@@ -308,8 +383,9 @@ class CustomWidget(Widget):
         self.ReloadVertewxes = True
 
     def on_touch_move(self, touch):#on_touch_move(self, touch):
-        #print("numVertsDyrty = ", numVertsDyrty, touch)
         pos = ( touch.spos[0]*2-1 , touch.spos[1]*2-1  )
+        #AM.RotVertsZ( -(pos[0] - self.pos[0]) )
+        AM.RotVerts( (pos[1] - self.pos[1]), -(pos[0] - self.pos[0]) )
         self.pos = pos
         self.ReloadVertewxes = True
 
@@ -327,14 +403,19 @@ class CustomWidget(Widget):
         #numVertsDyrty =  int(lv/3)
 
         if self.ReloadVertewxes:
+            #AM.RotVertsZ(0.01)
+            (lv, lt) = AM.OutVerts(vertices, normals, texcoords, 0, 0)
+            numVertsDyrty =  int(lv/3)
+
             vertices3 = vertices.tobytes('C')
             normals3 = normals.tobytes('C')
             texcoords3 = texcoords.tobytes('C') #а вот они, кстати, не меняются при некоторой аккуратности
+
             glUseProgram(shaderProgram)
             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0,  vertices3 ) #а здесь можно попробовать на с 0 менять куски векторов
             glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0,  normals3 ) #.tobytes('C') )
             glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0,  texcoords3 )
-            self.ReloadVertewxes = False
+            #self.ReloadVertewxes = False
 
         glClearColor(0.25, 0.25, 0.25, 1.0)
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
