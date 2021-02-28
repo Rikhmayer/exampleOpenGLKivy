@@ -248,22 +248,24 @@ class androidman():
             #переходим к следующей дольке
             radv = nextradv
 
+
 def MatrixViev():
     #делаем матрицу вида как показано в мануале http://www.songho.ca/opengl/gl_projectionmatrix.html
     f = 5500#3000#типа дальняя граница
+    SceneWH = (int(Window.width/2), int(Window.height/2))
 
     r = SceneWH[0]
     t = SceneWH[1]
 
     n0, r0, t0 = 1500, 750, 250 #это базовые настройки разрешения, на которые я ориентируюсь
     n = 1500
-
+    '''
     if ifVert:
         r = 300
         t = r*SceneWH[1]/SceneWH[0]
     else:
         t = 300
-        r = t*SceneWH[0]/SceneWH[1]
+        r = t*SceneWH[0]/SceneWH[1]'''
 
     alpha = pi/2 #- asin(1/sqrt(2))#math.pi/6
     F = 3000#2000 #расстояние от фокуса до точвки 0 0 0
