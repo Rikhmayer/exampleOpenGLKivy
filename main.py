@@ -1,11 +1,9 @@
 
 from kivy.app import App
 from kivy.graphics.opengl import *
-from kivy.graphics.opengl_utils import *
 
 from kivy.uix.widget import Widget
 from kivy.core.window import Window
-from kivy.uix.textinput import TextInput
 
 from kivy.base import EventLoop
 from kivy.clock import Clock
@@ -14,8 +12,8 @@ import numpy as np
 from math import *
 
 maxnumVertsDyrty = 10000
-vertices  = np.zeros(maxnumVertsDyrty*3, dtype=np.float32)
-normals  = np.zeros(maxnumVertsDyrty*3, dtype=np.float32)
+vertices  = np.zeros((maxnumVertsDyrty,3), dtype=np.float32)
+normals  = np.zeros((maxnumVertsDyrty,3), dtype=np.float32)
 texcoords = np.zeros(maxnumVertsDyrty*2, dtype=np.float32)
 
 shaderProgram = glCreateProgram()
@@ -117,24 +115,23 @@ class androidman():
         self.coolbochka([100,0,0], [100,0,-150], 60, 10)    #нога
         self.coolbochka([-100,0,0], [-100,0,-150], 60, 10)  #нога
 
-        self.npV = np.array(self.V, dtype = np.float32)
-        self.npN = np.array(self.N, dtype = np.float32)
-        self.npT = np.array(self.T, dtype = np.float32)
-        self.VN = len(self.V)
+        self.VN = int(len(self.V)/3)
         self.TN = len(self.T)
-        print(int(self.VN/3))
+        self.npV = np.array(self.V, dtype = np.float32).reshape(self.VN,3)
+        self.npN = np.array(self.N, dtype = np.float32).reshape(self.VN,3)
+        self.npT = np.array(self.T, dtype = np.float32)
 
         del self.V
         del self.N
         del self.T
 
-        self.shift = (0,0,0)
+        self.shift = np.array((0,0,0), dtype = np.float32)
 
     def OutVerts(self, V, N, T, Vrfom, Tfrom):
         '''перенесем свои значения векторов в глобальную систему векторов (не забудем повернуть, потом забудем!)'''
 
         for i in range(0, self.VN):
-            V[Vrfom] = self.npV[i] + self.shift[i%3]
+            V[Vrfom] = self.npV[i] + self.shift
             N[Vrfom] = self.npN[i]
             Vrfom += 1
         for i in range(0, self.TN):
@@ -152,24 +149,12 @@ class androidman():
                           [-sin(zrot),  cos(zrot), 0],
                           [         0,          0, 1] ])
         RotM = np.dot(RotM1, RotM2 )
-        vec1 = np.zeros(3, dtype=np.float32)
-
-        for i in range(0, self.VN, 3):
-            vec1[0] = self.npV[i]
-            vec1[1] = self.npV[i+1]
-            vec1[2] = self.npV[i+2]
-            res = np.dot(RotM, vec1)
-            self.npV[i] = res[0]
-            self.npV[i+1] = res[1]
-            self.npV[i+2] = res[2]
-
-            vec1[0] = self.npN[i]
-            vec1[1] = self.npN[i+1]
-            vec1[2] = self.npN[i+2]
-            res = np.dot(RotM, vec1)
-            self.npN[i] = res[0]
-            self.npN[i+1] = res[1]
-            self.npN[i+2] = res[2]
+        self.npV = np.einsum('ij,kj', self.npV, RotM) #работает как вариант ниже (в кавычках), но ~x40 раз быстрее
+        self.npN = np.einsum('ij,kj', self.npN, RotM)
+        '''
+        for i in range(0, self.VN):
+            self.npV[i] = np.dot(RotM, self.npV[i])
+            self.npN[i] = np.dot(RotM, self.npN[i])'''
 
     def coolbochka(self, v1, v2, R, N, iye = False, ifdno = False):
         ''' колбочка из точки в1 в точку в2 вот такой ширины, вот такой толщины, вот такой кривизны или с глазом '''
@@ -315,7 +300,6 @@ def init():
         glUniformMatrix4fv(ViewMatrLocation, 1 , GL_FALSE , bytes ( MatrixViev().transpose() ) )
         RotMatrLocation = glGetUniformLocation(shaderProgram, b'NormRotMatr')
 
-        glUseProgram(shaderProgram)
         glUniformMatrix4fv(  RotMatrLocation, 1 , GL_FALSE , bytes ( MatrixRot().transpose() ) )
 
         glEnable(GL_DEPTH_TEST)
@@ -328,9 +312,8 @@ class CustomWidget(Widget):
 
     def __init__(self, **kwargs):
         super(CustomWidget, self).__init__(**kwargs)
-
-        self.flagTochingKofsh = False
         self.ReloadVertewxes = True
+        self.indRender = 0
 
     def on_touch_move(self, touch):#on_touch_move(self, touch):
         pos = ( touch.spos[0]*2-1 , touch.spos[1]*2-1  )
@@ -349,9 +332,15 @@ class CustomWidget(Widget):
         global normals3
         global texcoords3
 
+        AM.RotVerts( 0.001, 0.001 )
+
+        self.indRender += 1
+        if self.indRender%200 == 0:
+            print(nap, nap**-1)
+
         if self.ReloadVertewxes:
             (lv, lt) = AM.OutVerts(vertices, normals, texcoords, 0, 0)
-            numVertsDyrty =  int(lv/3)
+            numVertsDyrty = lv # int(lv/3)
 
             vertices3 = vertices.tobytes('C')
             normals3 = normals.tobytes('C')
@@ -378,17 +367,20 @@ def passFunc(W):
 
 class MainApp(App):
     def build(self):
-        root = CustomWidget()
-        EventLoop.ensure_window() #?
+
+        EventLoop.ensure_window()
+        #мамкин хацкер режим ON
         Window.on_flip = lambda W = Window: passFunc(W)
+        #мамкин хацкер режим OFF
+        root = CustomWidget()
 
         return root
 
     def on_start(self):
-
         global numVertsDyrty
         (lv, lt) = AM.OutVerts(vertices, normals, texcoords, 0, 0)
-        numVertsDyrty =  int(lv/3)
+        numVertsDyrty = lv # int(lv/3)
+        print('numVertsDyrty =', numVertsDyrty)
         global vertices3
         global normals3
         global texcoords3
@@ -396,7 +388,8 @@ class MainApp(App):
         vertices3 = vertices.tobytes('C')
         normals3 = normals.tobytes('C')
         texcoords3 = texcoords.tobytes('C')
-        Clock.schedule_interval(self.root.update_glsl, 20 ** -1)
+
+        Clock.schedule_interval(self.root.update_glsl, 60 ** -1)
 
 if __name__ == '__main__':
     MainApp().run()
