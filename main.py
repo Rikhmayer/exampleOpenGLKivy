@@ -96,6 +96,7 @@ class vector():
         return "x={},y={},z={}".format(self.v[0],self.v[1],self.v[2])
 
 class androidman():
+    '''накидаем 3д версию логотипа андроида для примера'''
     def __init__(self):
         self.V = []
         self.N = []
@@ -129,7 +130,6 @@ class androidman():
 
     def OutVerts(self, V, N, T, Vrfom, Tfrom):
         '''перенесем свои значения векторов в глобальную систему векторов (не забудем повернуть, потом забудем!)'''
-
         for i in range(0, self.VN):
             V[Vrfom] = self.npV[i] + self.shift
             N[Vrfom] = self.npN[i]
@@ -137,7 +137,6 @@ class androidman():
         for i in range(0, self.TN):
             T[Tfrom] = self.npT[i]
             Tfrom += 1
-
         self.ifChage = False
         return (Vrfom, Tfrom)
 
@@ -149,7 +148,7 @@ class androidman():
                           [-sin(zrot),  cos(zrot), 0],
                           [         0,          0, 1] ])
         RotM = np.dot(RotM1, RotM2 )
-        self.npV = np.einsum('ij,kj', self.npV, RotM) #работает как вариант ниже (в кавычках), но ~x40 раз быстрее
+        self.npV = np.einsum('ij,kj', self.npV, RotM) #работает как вариант ниже (в кавычках), но ~x40 раз быстрее при умножении на 1000 векторов
         self.npN = np.einsum('ij,kj', self.npN, RotM)
         '''
         for i in range(0, self.VN):
@@ -178,7 +177,7 @@ class androidman():
         else:
             radv = (dv*vector(0,1,0)).normalize() #NormVec(VecMult(dv, (0,1,0)))
 
-        for i in range(0, N):
+        for i in range(0, N): #колбочка делится на N долек, в каждой полигон для цилиндра, сектор дна и скругление
             nextradv = (dv*radv).normalize() #NormVec(VecMult(dv, radv ))
             nextradv = cos(alpha)*radv + sin(alpha)*nextradv
 
@@ -188,8 +187,6 @@ class androidman():
             self.N <<  radv << nextradv << nextradv << nextradv << radv << radv
             self.T += texstandart*2
             #и донышко закроем
-            #radv = nextradv
-            #continue
             if ifdno:
                 self.V << R*radv + v1 << R*nextradv + v1 << v1 #+=  PlusVecs(CxV(R, radv), v1 )+ PlusVecs(CxV(R, nextradv), v1 )+ v1
                 self.N << -1*normmup << -1*normmup << -1*normmup  #+= normdno*3
@@ -219,12 +216,12 @@ class androidman():
 
 def MatrixViev():
     #делаем матрицу вида как показано в мануале http://www.songho.ca/opengl/gl_projectionmatrix.html
-    f = 5500#3000#типа дальняя граница
+    f = 5500
     r, t = int(Window.width/2), int(Window.height/2)
 
     n = 1500
     alpha = pi/2 #- asin(1/sqrt(2))#math.pi/6
-    F = 3000#2000 #расстояние от фокуса до точвки 0 0 0
+    F = 3000 #расстояние от фокуса до точвки 0 0 0
 
     perspective = [[n/r , 0, 0, 0],
                    [ 0, n/t, 0, 0],
@@ -238,7 +235,8 @@ def MatrixViev():
                    [ 0, 1, 0, 0],
                    [ 0, 0, 1, -F],
                    [ 0, 0, 0, 1]]
-    return np.dot( np.array(perspective, dtype=np.float32), np.dot( np.array(shiftaxis, dtype=np.float32), np.array(rotaxis, dtype=np.float32)))
+    #return np.dot( np.array(perspective, dtype=np.float32), np.dot( np.array(shiftaxis, dtype=np.float32), np.array(rotaxis, dtype=np.float32)))
+    return np.linalg.multi_dot( [ perspective, shiftaxis, rotaxis ] )
 
 def MatrixRot():
     alpha = pi/2 #- asin(1/sqrt(2))
@@ -277,11 +275,11 @@ def init():
 
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 300, 300, 0, GL_RGB, GL_UNSIGNED_BYTE, GenTexture(300))
 
-        VshaderID = glCreateShader( GL_VERTEX_SHADER )#shader)
-        glShaderSource(VshaderID, vertSH.encode('utf-8'))#getFileContent("helloTriangle.vert"))
+        VshaderID = glCreateShader( GL_VERTEX_SHADER )
+        glShaderSource(VshaderID, vertSH.encode('utf-8'))
 
-        FshaderID = glCreateShader( GL_FRAGMENT_SHADER )#shader)
-        glShaderSource(FshaderID, fragSH.encode('utf-8'))#getFileContent("helloTriangle.frag"))
+        FshaderID = glCreateShader( GL_FRAGMENT_SHADER )
+        glShaderSource(FshaderID, fragSH.encode('utf-8'))
 
         glCompileShader(VshaderID)
         glCompileShader(FshaderID)
@@ -296,12 +294,9 @@ def init():
 
         glUseProgram(shaderProgram)
         ViewMatrLocation = glGetUniformLocation(shaderProgram, b'PerspxViewMatr')
-
         glUniformMatrix4fv(ViewMatrLocation, 1 , GL_FALSE , bytes ( MatrixViev().transpose() ) )
         RotMatrLocation = glGetUniformLocation(shaderProgram, b'NormRotMatr')
-
         glUniformMatrix4fv(  RotMatrLocation, 1 , GL_FALSE , bytes ( MatrixRot().transpose() ) )
-
         glEnable(GL_DEPTH_TEST)
 
 init()
@@ -344,7 +339,7 @@ class CustomWidget(Widget):
 
             vertices3 = vertices.tobytes('C')
             normals3 = normals.tobytes('C')
-            texcoords3 = texcoords.tobytes('C') #а вот они, кстати, не меняются при некоторой аккуратности
+            texcoords3 = texcoords.tobytes('C') #а вот они, кстати, не меняются
 
             glUseProgram(shaderProgram)
             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0,  vertices3 ) #а здесь можно попробовать на с 0 менять куски векторов
@@ -367,19 +362,17 @@ def passFunc(W):
 
 class MainApp(App):
     def build(self):
-
         EventLoop.ensure_window()
         #мамкин хацкер режим ON
         Window.on_flip = lambda W = Window: passFunc(W)
         #мамкин хацкер режим OFF
         root = CustomWidget()
-
         return root
 
     def on_start(self):
         global numVertsDyrty
         (lv, lt) = AM.OutVerts(vertices, normals, texcoords, 0, 0)
-        numVertsDyrty = lv # int(lv/3)
+        numVertsDyrty = lм
         print('numVertsDyrty =', numVertsDyrty)
         global vertices3
         global normals3
