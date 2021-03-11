@@ -223,18 +223,18 @@ def MatrixViev():
     alpha = pi/2 #- asin(1/sqrt(2))#math.pi/6
     F = 3000 #расстояние от фокуса до точвки 0 0 0
 
-    perspective = [[n/r , 0, 0, 0],
+    perspective = np.array( [[n/r , 0, 0, 0],
                    [ 0, n/t, 0, 0],
                    [ 0, 0, -(f + n)/(f - n), -2*f*n/(f - n)],
-                   [ 0, 0, -1, 0]]
-    rotaxis     = [[ 1, 0, 0, 0],
+                   [ 0, 0, -1, 0]], dtype=np.float32)
+    rotaxis     = np.array( [[ 1, 0, 0, 0],
                    [ 0, cos(alpha), sin(alpha), 0],
                    [ 0, -sin(alpha), cos(alpha), 0],
-                   [ 0, 0, 0, 1]]
-    shiftaxis   = [[ 1, 0, 0, 0],
+                   [ 0, 0, 0, 1]], dtype=np.float32)
+    shiftaxis   = np.array( [[ 1, 0, 0, 0],
                    [ 0, 1, 0, 0],
                    [ 0, 0, 1, -F],
-                   [ 0, 0, 0, 1]]
+                   [ 0, 0, 0, 1]], dtype=np.float32)
     #return np.dot( np.array(perspective, dtype=np.float32), np.dot( np.array(shiftaxis, dtype=np.float32), np.array(rotaxis, dtype=np.float32)))
     return np.linalg.multi_dot( [ perspective, shiftaxis, rotaxis ] )
 
@@ -372,7 +372,7 @@ class MainApp(App):
     def on_start(self):
         global numVertsDyrty
         (lv, lt) = AM.OutVerts(vertices, normals, texcoords, 0, 0)
-        numVertsDyrty = lм
+        numVertsDyrty = lv
         print('numVertsDyrty =', numVertsDyrty)
         global vertices3
         global normals3
@@ -382,7 +382,7 @@ class MainApp(App):
         normals3 = normals.tobytes('C')
         texcoords3 = texcoords.tobytes('C')
 
-        Clock.schedule_interval(self.root.update_glsl, 60 ** -1)
+        Clock.schedule_interval(self.root.update_glsl, 40 ** -1)
 
 if __name__ == '__main__':
     MainApp().run()
